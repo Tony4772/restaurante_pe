@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- Manifest para instalación (PWA) -->
+    <link rel="manifest" href="data:application/manifest+json;base64,ewogICJnameIjogIkdyb2sgQ2luZW1hdGljIFBybyIsCiAgInNob3J0X25hbWUiOiAiR3Jva0NpbmUiLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzBhMGEwYSIsCiAgInRoZW1lX2NvbG9yIjogIiNmNTllMGIiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3BuZztiYXNlNjQsaVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQUVBQUFBQkFDQVlBQUFBYm9OalRBQUFBQUVsRlRrU3VRSW1DQyIsCiAgICAgICJzaXplcyI6ICIxOTJ4MTkyIiwKICAgICAgInR5cGUiOiAiaW1hZ2UvcG5nIgogICAgfQogIF0KfQ==">
+
+    <title>Grok Cinematic Console - Offline Pro</title>
+    
+    <!-- Librerías con CDN (Se cachearán tras la primera carga) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Monochrome Cinema -->
+    
+    <style>
+        :root {
+            --amber-glow: #f59e0b;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #0a0a0a;
+            color: #e5e5e5;
+            -webkit-tap-highlight-color: transparent;
+        }
+        h1, h2, h3, .font-mono {
+            font-family: 'Courier Prime', "Courier New", monospace;
+        }
+        .pro-panel {
+            background-color: #141414;
+            border: 1px solid #262626;
+        }
+        .control-group {
+            border-bottom: 1px solid #262626;
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+        .btn-toggle {
+            background: #1f1f1f;
+            border: 1px solid #333;
+            transition: all 0.2s;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .btn-toggle:hover { border-color: var(--amber-glow); }
+        .btn-toggle.active {
+            background: var(--amber-glow);
+            color: #000;
+            border-color: var(--amber-glow);
+            font-weight: bold;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+        }
+        #toast {
+            visibility: hidden;
+            background-color: var(--amber-glow);
+            color: #000;
+            text-align: center;
+            border-radius: 4px;
+            padding: 12px;
+            position: fixed;
+            z-index: 100;
+            right: 20px;
+            bottom: 20px;
+            font-weight: bold;
+            font-family: 'Courier Prime', monospace;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 20px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 20px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        /* Indicador de Estado Offline */
+        #status-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            z-index: 1000;
+            background: #22c55e;
+            transition: background 0.5s;
+        }
+        body.is-offline #status-bar { background: #ef4444; }
+    </style>
+</head>
+<body class="antialiased min-h-screen">
+
+    <div id="status-bar"></div>
+    <div id="toast">PROMPT COPIADO</div>
+
+    <div class="max-w-[1600px] mx-auto p-4 md:p-8">
+        
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-zinc-800 pb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-amber-500 uppercase tracking-tighter">Grok Cinematic Console <span class="text-white">v3.5</span></h1>
+                <p class="text-zinc-500 text-[10px] font-mono tracking-widest">OFFLINE READY PROMPT ENGINE</p>
+            </div>
+            <div class="flex gap-4 mt-4 md:mt-0">
+                <div class="flex flex-col items-end">
+                    <span class="text-[9px] text-zinc-500 font-mono">CONEXIÓN</span>
+                    <span id="connection-text" class="text-green-500 text-[10px] font-bold font-mono tracking-widest">● ONLINE</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Columna Izquierda: CONTROLES -->
+            <div class="lg:col-span-5 space-y-6">
+                <div class="pro-panel p-6 rounded-lg">
+                    <h2 class="text-amber-500 text-xs font-bold mb-6 flex items-center gap-2 font-mono">
+                        <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+                        INPUT TÉCNICO DE PRODUCCIÓN
+                    </h2>
+
+                    <!-- 1. Sujeto -->
+                    <div class="control-group">
+                        <label class="block text-[10px] text-zinc-500 font-mono uppercase mb-2">Escena & Acción Principal</label>
+                        <textarea id="subjectInput" rows="3" placeholder="Ej: Un detective camina bajo la lluvia de neón..." 
+                        class="w-full bg-zinc-900 border border-zinc-800 p-4 text-sm focus:border-amber-500 outline-none transition-all font-mono text-zinc-200"
+                        oninput="updateLogic()"></textarea>
+                    </div>
+
+                    <!-- 2. Óptica & Cámara -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 control-group">
+                        <div>
+                            <label class="block text-[10px] text-zinc-500 font-mono uppercase mb-2">Lente / Óptica</label>
+                            <select id="lensSelect" class="w-full bg-zinc-900 border border-zinc-800 p-2 text-xs rounded outline-none text-zinc-300" onchange="updateLogic()">
+                                <option value="">Estándar Digital</option>
+                                <option value="35mm Anamorphic lens, blue flare, oval bokeh">35mm Anamórfico</option>
+                                <option value="85mm Prime lens, f/1.4 shallow depth of field">85mm Prime (Retrato)</option>
+                                <option value="24mm Wide angle, cinematic distortion">24mm Gran Angular</option>
+                                <option value="70mm IMAX format, extreme detail">70mm IMAX</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-zinc-500 font-mono uppercase mb-2">Sensor / Cámara</label>
+                            <select id="bodySelect" class="w-full bg-zinc-900 border border-zinc-800 p-2 text-xs rounded outline-none text-zinc-300" onchange="updateLogic()">
+                                <option value="">Auto</option>
+                                <option value="Shot on Arri Alexa LF, cinematic texture">Arri Alexa LF</option>
+                                <option value="Shot on RED V-Raptor, 8k raw">RED V-Raptor</option>
+                                <option value="Shot on 35mm celluloid film, Kodak vision3">Cinta 35mm (Vintage)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 3. Iluminación -->
+                    <div class="control-group">
+                        <label class="block text-[10px] text-zinc-500 font-mono uppercase mb-2">Esquemas de Luz</label>
+                        <div class="grid grid-cols-2 gap-2" id="lightOptions">
+                            <button class="btn-toggle p-2 rounded text-zinc-400" onclick="toggleOption('light', 'Rembrandt lighting', this)">Rembrandt</button>
+                            <button class="btn-toggle p-2 rounded text-zinc-400" onclick="toggleOption('light', 'Volumetric cinematic fog', this)">Humo Volumétrico</button>
+                            <button class="btn-toggle p-2 rounded text-zinc-400" onclick="toggleOption('light', 'Dramatic low key lighting', this)">Low Key</button>
+                            <button class="btn-toggle p-2 rounded text-zinc-400" onclick="toggleOption('light', 'Golden hour natural rays', this)">Hora Dorada</button>
+                        </div>
+                    </div>
+
+                    <!-- 4. Post & Color -->
+                    <div class="mb-0">
+                        <label class="block text-[10px] text-zinc-500 font-mono uppercase mb-2">Gradación & Look</label>
+                        <div class="grid grid-cols-2 gap-2" id="colorOptions">
+                            <button class="btn-toggle p-2 rounded text-zinc-400" onclick="toggleOption('color', 'Professional teal and orange grade', this)">Teal & Orange</button>
+                            <button class="btn-toggle p-2 rounded text-zinc-400" onclick="toggleOption('color', 'Heavy film grain, moody atmosphere', this)">Grano & Mood</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna Derecha: MONITOR -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <!-- Terminal de Prompt -->
+                <div class="pro-panel p-8 rounded-lg border-2 border-zinc-800 flex flex-col min-h-[400px]">
+                    <div class="flex justify-between items-center mb-10">
+                        <span class="text-[9px] bg-amber-500 text-black px-2 py-0.5 font-bold font-mono">TERMINAL PROMPT</span>
+                        <div class="flex gap-2 items-center">
+                             <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
+                             <span class="text-[9px] font-mono text-zinc-500 tracking-tighter uppercase">Signal: Processing</span>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow flex flex-col justify-center">
+                        <div id="finalPromptDisplay" class="text-xl md:text-2xl font-mono leading-relaxed text-zinc-100 italic">
+                            // Iniciando sistema...
+                        </div>
+                    </div>
+
+                    <div class="mt-8 border-t border-zinc-800 pt-6 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div class="flex gap-6">
+                            <div class="text-left">
+                                <p class="text-[9px] text-zinc-600 uppercase font-mono">Métricas</p>
+                                <p id="tokenDisplay" class="text-amber-500 font-bold font-mono">0 TKNS</p>
+                            </div>
+                            <div class="text-left">
+                                <p class="text-[9px] text-zinc-600 uppercase font-mono">Fidelidad</p>
+                                <p id="complexityDisplay" class="text-amber-500 font-bold font-mono">BÁSICA</p>
+                            </div>
+                        </div>
+                        <button onclick="copyToClipboard()" class="w-full md:w-auto bg-amber-500 hover:bg-amber-400 text-black px-12 py-4 rounded font-bold transition-all shadow-lg active:scale-95">
+                            COPIAR COMANDO
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Radar -->
+                <div class="pro-panel p-6 rounded-lg">
+                    <h3 class="text-[10px] text-zinc-500 font-mono uppercase mb-4 tracking-widest">Análisis de Vector Cinemático</h3>
+                    <div class="chart-container">
+                        <canvas id="fidelityChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. SERVICE WORKER PARA MODO OFFLINE ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    const CACHE_NAME = 'grok-cine-v1';
+                    const ASSETS = [
+                        location.href,
+                        'https://cdn.tailwindcss.com',
+                        'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js',
+                        'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Courier+Prime:wght@400;700&display=swap'
+                    ];
+
+                    self.addEventListener('install', (e) => {
+                        e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
+                    });
+
+                    self.addEventListener('fetch', (e) => {
+                        e.respondWith(
+                            caches.match(e.request).then(response => response || fetch(e.request))
+                        );
+                    });
+                `;
+                const blob = new Blob([swCode], { type: 'text/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+                navigator.serviceWorker.register(swUrl).catch(err => console.log("SW Error", err));
+            });
+        }
+
+        // --- 2. GESTIÓN DE ESTADO OFFLINE ---
+        function updateOnlineStatus() {
+            const isOnline = navigator.onLine;
+            document.body.classList.toggle('is-offline', !isOnline);
+            const statusText = document.getElementById('connection-text');
+            statusText.innerText = isOnline ? '● ONLINE' : '● OFFLINE';
+            statusText.className = isOnline ? 'text-green-500 text-[10px] font-bold font-mono' : 'text-red-500 text-[10px] font-bold font-mono';
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+
+        // --- 3. LÓGICA DE LA APLICACIÓN ---
+        let state = {
+            subject: "",
+            lens: "",
+            body: "",
+            lights: [],
+            colors: []
+        };
+
+        let fidelityChart = null;
+
+        function toggleOption(type, value, btn) {
+            const list = type === 'light' ? state.lights : state.colors;
+            const index = list.indexOf(value);
+            if (index > -1) {
+                list.splice(index, 1);
+                btn.classList.remove('active');
+            } else {
+                list.push(value);
+                btn.classList.add('active');
+            }
+            updateLogic();
+        }
+
+        function updateLogic() {
+            state.subject = document.getElementById('subjectInput').value.trim();
+            state.lens = document.getElementById('lensSelect').value;
+            state.body = document.getElementById('bodySelect').value;
+            buildPrompt();
+            updateStats();
+        }
+
+        function buildPrompt() {
+            let parts = [];
+            let displaySub = state.subject || "// INSERTE SUJETO";
+            
+            parts.push(`<span class="text-zinc-500">[SCENE]</span> ${displaySub}`);
+            if (state.body || state.lens) {
+                parts.push(`<span class="text-amber-500">${[state.body, state.lens].filter(x => x).join(", ")}</span>`);
+            }
+            if (state.lights.length > 0) parts.push(`<span class="text-blue-400">${state.lights.join(", ")}</span>`);
+            if (state.colors.length > 0) parts.push(`<span class="text-zinc-400">${state.colors.join(", ")}</span>`);
+            
+            parts.push(`<span class="text-zinc-600">masterpiece quality, 8k resolution, ultra photorealistic, cinematic atmosphere</span>`);
+
+            document.getElementById('finalPromptDisplay').innerHTML = parts.join(", ");
+        }
+
+        function updateStats() {
+            const text = document.getElementById('finalPromptDisplay').innerText;
+            document.getElementById('tokenDisplay').innerText = Math.ceil(text.length / 3.5) + " TKNS";
+            
+            let complexity = "BÁSICA";
+            let val = 20;
+            if (state.subject.length > 20) val += 20;
+            if (state.lens) val += 15;
+            if (state.body) val += 15;
+            val += (state.lights.length + state.colors.length) * 15;
+            
+            if (val > 45) complexity = "INTERMEDIA";
+            if (val > 75) complexity = "CINEMÁTICA";
+            if (val > 95) complexity = "ULTRA PRO";
+            document.getElementById('complexityDisplay').innerText = complexity;
+            
+            updateChart(val);
+        }
+
+        function initChart() {
+            const canvas = document.getElementById('fidelityChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            fidelityChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Óptica', 'Luz', 'Sujeto', 'Look', 'Textura'],
+                    datasets: [{
+                        data: [20, 20, 20, 20, 20],
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        borderColor: '#f59e0b',
+                        borderWidth: 1,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            grid: { color: '#262626' },
+                            angleLines: { color: '#262626' },
+                            suggestedMin: 0,
+                            suggestedMax: 100,
+                            ticks: { 
+                                display: false,
+                                // Solución al RangeError: Definir explícitamente la precisión y paso
+                                stepSize: 20,
+                                precision: 0,
+                                callback: function() { return ''; } // Evitar que el formateador automático falle
+                            },
+                            pointLabels: { color: '#52525b', font: { size: 9, family: 'Courier Prime' } }
+                        }
+                    },
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    }
+                }
+            });
+        }
+
+        function updateChart(base) {
+            if (!fidelityChart) return;
+            const data = [
+                state.lens ? 90 : 20,
+                state.lights.length > 0 ? (state.lights.length * 30 + 20) : 20,
+                state.subject.length > 30 ? 95 : 40,
+                state.colors.length > 0 ? 80 : 30,
+                state.body ? 85 : 40
+            ];
+            fidelityChart.data.datasets[0].data = data.map(v => Math.min(v, 100));
+            fidelityChart.update();
+        }
+
+        function copyToClipboard() {
+            const text = document.getElementById('finalPromptDisplay').innerText;
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+
+            const t = document.getElementById("toast");
+            t.className = "show";
+            setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
+        }
+
+        window.onload = () => { initChart(); updateLogic(); };
+    </script>
+</body>
+</html>
